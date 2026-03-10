@@ -1,65 +1,58 @@
-import Image from "next/image";
+"use client";
+
+import {
+  APIProvider,
+  Map,
+  Marker,
+  useMapsLibrary,
+  useMap,
+} from "@vis.gl/react-google-maps";
+import React, { useRef, useEffect } from "react";
+
+const Directions: React.FC = () => {
+  const map = useMap();
+  const routesLibrary = useMapsLibrary("routes");
+  const serviceRef = useRef<google.maps.DirectionsService | null>(null);
+  const rendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
+
+  useEffect(() => {
+    if (!routesLibrary || !map) return;
+
+    serviceRef.current = new routesLibrary.DirectionsService();
+    rendererRef.current = new routesLibrary.DirectionsRenderer({ map });
+
+    serviceRef.current.route(
+      {
+        origin: { lat: 40.7128, lng: -74.006 },
+        destination: { lat: 40.758, lng: -73.985 },
+        travelMode: google.maps.TravelMode.DRIVING,
+      },
+      (result, status) => {
+        if (status === "OK" && rendererRef.current) {
+          rendererRef.current.setDirections(result);
+        }
+      },
+    );
+
+    return () => {
+      rendererRef.current?.setMap(null);
+    };
+  }, [routesLibrary, map]);
+
+  return null;
+};
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}>
+      <Map
+        defaultCenter={{ lat: 40.7128, lng: -74.006 }}
+        defaultZoom={12}
+        style={{ height: "100vh", width: "100vw" }}
+      >
+        <Marker position={{ lat: 40.7128, lng: -74.006 }} label="Sucursal" />
+        <Directions />
+      </Map>
+    </APIProvider>
   );
 }
