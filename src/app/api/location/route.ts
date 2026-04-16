@@ -1,4 +1,4 @@
-// src/app/api/delivery/route.ts
+// src/app/api/location/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
