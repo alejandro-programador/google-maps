@@ -1,5 +1,6 @@
 // src/app/api/location/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import sedesRaw from "@/data/sedes-data.json";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -24,78 +25,23 @@ type TarifaResponse =
       motivo: string;
     };
 
-// ─── Data de sedes ────────────────────────────────────────────────────────────
-// Coordenadas extraídas de los KMZ proporcionados por el cliente
+// ─── Nombres legibles por sede ────────────────────────────────────────────────
 
-const SEDES: Sede[] = [
-  {
-    name: "Maracay",
-    center: { lat: 10.262492, lng: -67.58838 },
-    polygons: [
-      { name: "ZONA RESTRINGIDA DESPUES DE LAS 7PM", coords: [] },
-      { name: "ZONA RESTRINGIDA DESPUES DE LAS 5PM", coords: [] },
-      { name: "RESTRINGIDO HASTA LAS 8PM", coords: [] },
-      { name: "ZONA LEJANA LIMITE", coords: [] },
-      { name: "RESTRINGIDO HASTA LAS 6PM", coords: [] },
-      { name: "RESTRINGIDO HASTA LAS 7PM", coords: [] },
-      { name: "LLEGAMOS HASTA LAS 7PM", coords: [] },
-      { name: "NO LLEGAMOS", coords: [] },
-      { name: "ZONAS LIMITES", coords: [] },
-    ],
-  },
-  {
-    name: "Valencia",
-    center: { lat: 10.258993, lng: -67.960158 },
-    polygons: [
-      { name: "PARAISO +1$ ADICIONAL", coords: [] },
-      { name: "Zonas Limites", coords: [] },
-      { name: "No llegamos, ZONA ENTRINCADA", coords: [] },
-      { name: "No llegamos, INVASION", coords: [] },
-      { name: "ZONA ROJA, NO LLEGAMOS", coords: [] },
-      { name: "INVASION, NO LLEGAMOS, CARRETERA DE TIERRA", coords: [] },
-      { name: "Peligroso, ZONA ROJA Y OSCURA", coords: [] },
-    ],
-  },
-  {
-    name: "Barquisimeto",
-    center: { lat: 10.071671, lng: -69.293337 },
-    polygons: [
-      { name: "restringido despues de 8:30pm", coords: [] },
-      { name: "LLegamos hasta las 9:45Pm", coords: [] },
-      { name: "ZONAS LIMITES", coords: [] },
-      { name: "Restringido despues de las 9:30pm", coords: [] },
-      { name: "Restringido hasta las 9:45 pm", coords: [] },
-      { name: "Restringido despues de las 10pm", coords: [] },
-    ],
-  },
-  {
-    name: "Caracas - La Florida",
-    center: { lat: 10.500444, lng: -66.875794 },
-    polygons: [
-      { name: "zona princial", coords: [] },
-      { name: "zona caricuao", coords: [] },
-      { name: "zona militar", coords: [] },
-      { name: "Barrio Petare", coords: [] },
-      { name: "Barrio La Cota 905", coords: [] },
-      { name: "Barrio la Vega", coords: [] },
-    ],
-  },
-  {
-    name: "Caracas - Catia",
-    center: { lat: 10.511712, lng: -66.943495 },
-    polygons: [
-      { name: "ZONAS LIMITES", coords: [] },
-      { name: "LA VEGA", coords: [] },
-      { name: "RESTRICCION Fuerte Tiuna", coords: [] },
-      { name: "Carretera vieja CCS - La Guaira", coords: [] },
-      { name: "Estado La Guaira", coords: [] },
-      { name: "El cementerio", coords: [] },
-      { name: "Intercomunal Antimano", coords: [] },
-      { name: "Vía el Junquito", coords: [] },
-      { name: "Las Adjuntas", coords: [] },
-    ],
-  },
-] as const;
+const SEDE_NOMBRES: Record<string, string> = {
+  maracay: "Maracay",
+  valencia: "Valencia",
+  barquisimeto: "Barquisimeto",
+  caracas_florida: "Caracas - La Florida",
+  caracas_catia: "Caracas - Catia",
+};
+
+// ─── Cargar sedes desde JSON ──────────────────────────────────────────────────
+
+const SEDES: Sede[] = Object.entries(sedesRaw).map(([key, value]) => ({
+  name: SEDE_NOMBRES[key] ?? key,
+  center: value.center as Coord,
+  polygons: value.polygons as Polygon[],
+}));
 
 // ─── Tabla de tarifas ─────────────────────────────────────────────────────────
 
@@ -122,17 +68,22 @@ function haversineKm(a: Coord, b: Coord): number {
   return R * 2 * Math.asin(Math.sqrt(h));
 }
 
-/** Ray casting: punto dentro de polígono */
+/** Ray casting: punto dentro de polígono
+ *  coords = array de [lng, lat] tal como vienen del KML
+ */
 function puntoDentroDePoligono(
   punto: Coord,
   poligono: [number, number][],
 ): boolean {
   if (poligono.length < 3) return false;
   let dentro = false;
-  const { lat: py, lng: px } = punto;
+  const px = punto.lng;
+  const py = punto.lat;
   for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i++) {
-    const [xi, yi] = poligono[i];
-    const [xj, yj] = poligono[j];
+    const xi = poligono[i][0]; // lng
+    const yi = poligono[i][1]; // lat
+    const xj = poligono[j][0];
+    const yj = poligono[j][1];
     const intersecta =
       yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi;
     if (intersecta) dentro = !dentro;
@@ -140,18 +91,13 @@ function puntoDentroDePoligono(
   return dentro;
 }
 
-/** Parsea la hora límite desde el nombre del polígono */
+/** Parsea la hora límite desde el nombre del polígono → minutos desde medianoche */
 function parsearHoraLimite(nombre: string): number | null {
   const upper = nombre.toUpperCase();
-
-  // Patrones: "DESPUES DE LAS 7PM", "HASTA LAS 8PM", "DESPUES DE LAS 9:30PM"
   const match = upper.match(/(\d{1,2})(?::(\d{2}))?\s*PM/);
   if (!match) return null;
-
   const hora = parseInt(match[1]);
   const minutos = match[2] ? parseInt(match[2]) : 0;
-
-  // Convertir a minutos desde medianoche (formato 24h)
   const hora24 = hora === 12 ? 12 : hora + 12;
   return hora24 * 60 + minutos;
 }
@@ -193,7 +139,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const latParam = searchParams.get("latitude");
   const lngParam = searchParams.get("longitude");
 
-  // Validar params
   if (!latParam || !lngParam) {
     return NextResponse.json(
       { error: "Se requieren los parámetros latitude y longitude" },
@@ -213,7 +158,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const cliente: Coord = { lat, lng };
 
-  // 1. Encontrar la sede más cercana
+  // 1. Sede más cercana
   const sedeConDistancia = SEDES.map((sede) => ({
     sede,
     distancia: haversineKm(cliente, sede.center),
@@ -222,7 +167,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const { sede, distancia } = sedeConDistancia;
   const distanciaKm = Math.round(distancia * 100) / 100;
 
-  // 2. Verificar si está fuera del radio máximo (12 km)
+  // 2. Fuera de cobertura
   if (distanciaKm > 12) {
     return NextResponse.json<TarifaResponse>({
       disponible: false,
@@ -231,7 +176,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     });
   }
 
-  // 3. Determinar radio tarifario
+  // 3. Radio tarifario
   const radio = RADIOS.find((r) => distanciaKm >= r.min && distanciaKm < r.max);
   if (!radio) {
     return NextResponse.json<TarifaResponse>({
@@ -241,19 +186,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     });
   }
 
-  // 4. Hora actual Venezuela (UTC-4)
+  // 4. Hora Venezuela (UTC-4)
   const ahora = new Date();
   const horaVE = new Date(ahora.getTime() - 4 * 60 * 60 * 1000);
   const minutosActuales = horaVE.getUTCHours() * 60 + horaVE.getUTCMinutes();
+  const horaStr = `${horaVE.getUTCHours()}:${String(horaVE.getUTCMinutes()).padStart(2, "0")}`;
 
-  // 5. Verificar polígonos (si el cliente cae dentro de alguno)
+  // 5. Verificar polígonos
   let recargo = 0;
   let restriccionActiva: string | null = null;
   let noLlega = false;
 
   for (const poligono of sede.polygons) {
-    // Solo verificar si tiene coordenadas reales
-    // (En producción estas vendrán del KMZ parseado)
     if (poligono.coords.length < 3) continue;
 
     const estaDentro = puntoDentroDePoligono(cliente, poligono.coords);
@@ -276,7 +220,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       const horaLimite = parsearHoraLimite(poligono.name);
       if (horaLimite !== null && minutosActuales >= horaLimite) {
         noLlega = true;
-        restriccionActiva = `${poligono.name} (hora actual: ${horaVE.getUTCHours()}:${String(horaVE.getUTCMinutes()).padStart(2, "0")} VE)`;
+        restriccionActiva = `${poligono.name} (hora VE: ${horaStr})`;
         break;
       }
     }
@@ -290,7 +234,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     });
   }
 
-  // 6. Calcular total
+  // 6. Total
   const total = radio.tarifa + recargo;
 
   return NextResponse.json<TarifaResponse>({
