@@ -2,8 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import branchesRaw from "@/data/sedes-data.json";
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-
+// ─── Tipos ────
 type Coord = { lat: number; lng: number };
 type Polygon = { name: string; coords: [number, number][] };
 type Branch = { name: string; center: Coord; polygons: Polygon[] };
@@ -33,7 +32,7 @@ const BRANCH_NAMES: Record<string, string> = {
   caracas_catia: "Caracas - Catia",
 };
 
-// ─── Cargar sedes desde JSON ──────────────────────────────────────────────────
+// ─── Cargar sedes desde JSON ─────────
 
 const BRANCHES: Branch[] = Object.entries(branchesRaw).map(([key, value]) => ({
   name: BRANCH_NAMES[key] ?? key,
@@ -41,7 +40,7 @@ const BRANCHES: Branch[] = Object.entries(branchesRaw).map(([key, value]) => ({
   polygons: value.polygons as Polygon[],
 }));
 
-// ─── Tabla de tarifas ─────────────────────────────────────────────────────────
+// ─── Tabla de tarifas ────────────────
 
 const RADII = [
   { name: "R1", min: 0, max: 1, rate: 1 },
@@ -51,7 +50,7 @@ const RADII = [
   { name: "R5", min: 9, max: 12, rate: 8 },
 ];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ────────────
 
 /** Distancia Haversine entre dos coordenadas en km */
 function haversineKm(a: Coord, b: Coord): number {
@@ -127,7 +126,7 @@ function classifyPolygon(
   return "other";
 }
 
-// ─── Handler ──────────────────────────────────────────────────────────────────
+// ─── Handler
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(req.url);

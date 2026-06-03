@@ -8,20 +8,69 @@ import {
   useMapsLibrary,
   useMap,
 } from "@vis.gl/react-google-maps";
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 
-const SUCURSAL = { lat: 40.7128, lng: -74.006 };
-const CLIENTE = { lat: 40.758, lng: -73.985 };
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
-const MOCK = {
-  distancia: "2.5 km",
-  radio: "R2",
-  zona: "A",
-  horario: "Normal",
-  total: "$2.00",
-};
+type Coord = { lat: number; lng: number };
 
-const Directions: React.FC = () => {
+type RateResponse =
+  | {
+      available: true;
+      branch: string;
+      distance_km: number;
+      radius: string;
+      base_rate: number;
+      surcharge: number;
+      total: number;
+      restriction: string | null;
+    }
+  | {
+      available: false;
+      branch: string;
+      reason: string;
+    }
+  | null;
+
+// ─── Sedes (para encontrar la más cercana en el frontend) ─────────────────────
+
+const BRANCHES: { name: string; center: Coord }[] = [
+  { name: "Maracay", center: { lat: 10.262492, lng: -67.58838 } },
+  { name: "Valencia", center: { lat: 10.258993, lng: -67.960158 } },
+  { name: "Barquisimeto", center: { lat: 10.071671, lng: -69.293337 } },
+  { name: "Caracas - La Florida", center: { lat: 10.500444, lng: -66.875794 } },
+  { name: "Caracas - Catia", center: { lat: 10.511712, lng: -66.943495 } },
+];
+
+// Centro de Venezuela como fallback si no hay geolocalización
+const CARACAS_CENTER: Coord = { lat: 10.500444, lng: -66.875794 };
+
+function haversineKm(a: Coord, b: Coord): number {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((a.lat * Math.PI) / 180) *
+      Math.cos((b.lat * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.asin(Math.sqrt(h));
+}
+
+function closestBranch(client: Coord) {
+  return BRANCHES.reduce((prev, curr) =>
+    haversineKm(client, curr.center) < haversineKm(client, prev.center)
+      ? curr
+      : prev,
+  );
+}
+
+// ─── Componente de ruta ───────────────────────────────────────────────────────
+
+const Directions: React.FC<{ origin: Coord; destination: Coord }> = ({
+  origin,
+  destination,
+}) => {
   const map = useMap();
   const routesLibrary = useMapsLibrary("routes");
   const serviceRef = useRef<google.maps.DirectionsService | null>(null);
@@ -29,14 +78,22 @@ const Directions: React.FC = () => {
 
   useEffect(() => {
     if (!routesLibrary || !map) return;
-
-    serviceRef.current = new routesLibrary.DirectionsService();
-    rendererRef.current = new routesLibrary.DirectionsRenderer({ map });
+    if (!serviceRef.current) {
+      serviceRef.current = new routesLibrary.DirectionsService();
+    }
+    if (!rendererRef.current) {
+      rendererRef.current = new routesLibrary.DirectionsRenderer({
+        map,
+        suppressMarkers: true, // usamos nuestros propios markers
+      });
+    } else {
+      rendererRef.current.setMap(map);
+    }
 
     serviceRef.current.route(
       {
-        origin: SUCURSAL,
-        destination: CLIENTE,
+        origin,
+        destination,
         travelMode: google.maps.TravelMode.DRIVING,
       },
       (result, status) => {
@@ -49,120 +106,167 @@ const Directions: React.FC = () => {
     return () => {
       rendererRef.current?.setMap(null);
     };
-  }, [routesLibrary, map]);
+  }, [routesLibrary, map, origin, destination]);
 
   return null;
 };
 
+// ─── Mapa con pin arrastrable ─────────────────────────────────────────────────
+
+const DraggableMap: React.FC<{
+  clientCoord: Coord;
+  branchCoord: Coord;
+  onDragEnd: (coord: Coord) => void;
+  initialZoom?: number;
+}> = ({ clientCoord, branchCoord, onDragEnd, initialZoom = 13 }) => {
+  return (
+    <Map
+      defaultCenter={clientCoord}
+      defaultZoom={initialZoom}
+      style={{ height: "100%", width: "100%" }}
+    >
+      {/* Pin sucursal — azul, fijo */}
+      <Marker
+        position={branchCoord}
+        label={{ text: "S", color: "white", fontWeight: "bold" }}
+        title="Sucursal"
+      />
+
+      {/* Pin cliente — rojo, arrastrable */}
+      <Marker
+        position={clientCoord}
+        draggable
+        title="Arrastra para cambiar ubicación"
+        onDragEnd={(e) => {
+          if (e.latLng) {
+            onDragEnd({ lat: e.latLng.lat(), lng: e.latLng.lng() });
+          }
+        }}
+      />
+
+      <Directions origin={branchCoord} destination={clientCoord} />
+    </Map>
+  );
+};
+
+// ─── Page principal ───────────────────────────────────────────────────────────
+
 export default function Home() {
+  const [clientCoord, setClientCoord] = useState<Coord | null>(null);
+  const [geoPermission, setGeoPermission] = useState<
+    "pending" | "granted" | "denied"
+  >("pending");
+  const [rate, setRate] = useState<RateResponse>(null);
+  const [loadingRate, setLoadingRate] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Geolocalización al montar
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setGeoPermission("denied");
+      setClientCoord(CARACAS_CENTER);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeoPermission("granted");
+        setClientCoord({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      },
+      () => {
+        setGeoPermission("denied");
+        setClientCoord(CARACAS_CENTER);
+      },
+    );
+  }, []);
+
+  // Calcular tarifa cuando cambia el pin
+  const calcularTarifa = useCallback(async (coord: Coord) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setLoadingRate(true);
+      try {
+        const res = await fetch(
+          `/api/location?latitude=${coord.lat}&longitude=${coord.lng}`,
+        );
+        const data = await res.json();
+        setRate(data);
+      } catch {
+        setRate(null);
+      } finally {
+        setLoadingRate(false);
+      }
+    }, 400); // debounce 400ms para no spamear mientras arrastra
+  }, []);
+
+  // Calcular al recibir coordenada inicial
+  useEffect(() => {
+    if (clientCoord) calcularTarifa(clientCoord);
+  }, [clientCoord, calcularTarifa]);
+
+  const handleDragEnd = (coord: Coord) => {
+    setClientCoord(coord);
+    calcularTarifa(coord);
+  };
+
+  const branch = clientCoord ? closestBranch(clientCoord) : null;
+
   return (
     <APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}>
       <div style={{ display: "flex", height: "100vh", width: "100vw" }}>
         {/* MAPA */}
-        <div style={{ flex: "0 0 65%" }}>
-          <Map
-            defaultCenter={SUCURSAL}
-            defaultZoom={13}
-            style={{ height: "100%", width: "100%" }}
-          >
-            <Marker position={SUCURSAL} label="S" />
-            <Marker position={CLIENTE} label="C" />
-            <Directions />
-          </Map>
+        <div style={{ flex: "0 0 65%", position: "relative" }}>
+          {clientCoord && branch ? (
+            <DraggableMap
+              clientCoord={clientCoord}
+              branchCoord={branch.center}
+              onDragEnd={handleDragEnd}
+              initialZoom={geoPermission === "denied" ? 6 : 13}
+            />
+          ) : (
+            <div
+              style={{
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#f3f4f6",
+                flexDirection: "column",
+                gap: "12px",
+                color: "#6b7280",
+              }}
+            >
+              <div style={{ fontSize: "40px" }}>🗺️</div>
+              <p style={{ margin: 0, fontSize: "16px" }}>
+                Obteniendo ubicación...
+              </p>
+            </div>
+          )}
+
+          {/* Banner si denegó permisos */}
+          {geoPermission === "denied" && (
+            <div
+              style={{
+                position: "absolute",
+                top: "16px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                backgroundColor: "#fffbeb",
+                border: "1px solid #fcd34d",
+                borderRadius: "8px",
+                padding: "10px 16px",
+                fontSize: "13px",
+                color: "#92400e",
+                whiteSpace: "nowrap",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                zIndex: 10,
+              }}
+            >
+              📍 Ubicación no disponible — arrastra el pin rojo para
+              posicionarte
+            </div>
+          )}
         </div>
-
-        {/* CALCULADORA */}
-        <Card
-          style={{
-            flex: "0 0 35%",
-            padding: "32px 24px",
-            backgroundColor: "#f9fafb",
-            display: "flex",
-            flexDirection: "column",
-            gap: "16px",
-            borderLeft: "1px solid #e5e7eb",
-          }}
-        >
-          <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#111827" }}>
-            Cálculo de Tarifa
-          </h2>
-
-          {/* Datos */}
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-          >
-            <Row emoji="📍" label="Distancia" value={MOCK.distancia} />
-            <Row emoji="🔵" label="Radio" value={MOCK.radio} />
-            <Row emoji="🏘️" label="Zona" value={MOCK.zona} />
-            <Row emoji="🕐" label="Horario" value={MOCK.horario} />
-          </div>
-
-          <hr style={{ borderColor: "#e5e7eb" }} />
-
-          {/* Total */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <span
-              style={{ fontSize: "18px", fontWeight: "600", color: "#374151" }}
-            >
-              Total
-            </span>
-            <span
-              style={{ fontSize: "28px", fontWeight: "800", color: "#16a34a" }}
-            >
-              {MOCK.total}
-            </span>
-          </div>
-
-          {/* Botón */}
-          <button
-            style={{
-              marginTop: "auto",
-              padding: "14px",
-              backgroundColor: "#16a34a",
-              color: "white",
-              border: "none",
-              borderRadius: "10px",
-              fontSize: "16px",
-              fontWeight: "600",
-              cursor: "pointer",
-            }}
-            onClick={() => alert("Tarifa aceptada ✅")}
-          >
-            ✓ Aceptar
-          </button>
-        </Card>
       </div>
     </APIProvider>
-  );
-}
-
-function Row({
-  emoji,
-  label,
-  value,
-}: {
-  emoji: string;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}
-    >
-      <span style={{ color: "#6b7280" }}>
-        {emoji} {label}
-      </span>
-      <span style={{ fontWeight: "600", color: "#111827" }}>{value}</span>
-    </div>
   );
 }
