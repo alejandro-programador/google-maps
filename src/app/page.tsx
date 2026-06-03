@@ -7,7 +7,13 @@ import {
   useMapsLibrary,
   useMap,
 } from "@vis.gl/react-google-maps";
-import React, { useRef, useEffect, useState, useCallback } from "react";
+import React, {
+  useRef,
+  useEffect,
+  useState,
+  useCallback,
+  Suspense,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useQueryObject } from "@/hooks/useQueryObject";
 
@@ -241,147 +247,149 @@ export default function Home() {
   }
 
   return (
-    <APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}>
-      <div
-        style={{
-          display: "flex",
-          height: "100vh",
-          width: "100vw",
-          position: "relative",
-        }}
-      >
-        {/* MAPA — ahora ocupa todo el ancho */}
-        <div style={{ flex: "1", position: "relative" }}>
-          {clientCoord && branch ? (
-            <DraggableMap
-              clientCoord={clientCoord}
-              branchCoord={branch.center}
-              onDragEnd={handleDragEnd}
-              initialZoom={geoPermission === "denied" ? 6 : 13}
-            />
-          ) : (
-            <div
-              style={{
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: "#f3f4f6",
-                flexDirection: "column",
-                gap: "12px",
-                color: "#6b7280",
-              }}
-            >
-              <div style={{ fontSize: "40px" }}>🗺️</div>
-              <p style={{ margin: 0, fontSize: "16px" }}>
-                Obteniendo ubicación...
-              </p>
-            </div>
-          )}
+    <Suspense fallback={<div>Cargando...</div>}>
+      <APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}>
+        <div
+          style={{
+            display: "flex",
+            height: "100vh",
+            width: "100vw",
+            position: "relative",
+          }}
+        >
+          {/* MAPA — ahora ocupa todo el ancho */}
+          <div style={{ flex: "1", position: "relative" }}>
+            {clientCoord && branch ? (
+              <DraggableMap
+                clientCoord={clientCoord}
+                branchCoord={branch.center}
+                onDragEnd={handleDragEnd}
+                initialZoom={geoPermission === "denied" ? 6 : 13}
+              />
+            ) : (
+              <div
+                style={{
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "#f3f4f6",
+                  flexDirection: "column",
+                  gap: "12px",
+                  color: "#6b7280",
+                }}
+              >
+                <div style={{ fontSize: "40px" }}>🗺️</div>
+                <p style={{ margin: 0, fontSize: "16px" }}>
+                  Obteniendo ubicación...
+                </p>
+              </div>
+            )}
 
-          {/* Banner si denegó permisos */}
-          {geoPermission === "denied" && (
+            {/* Banner si denegó permisos */}
+            {geoPermission === "denied" && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "16px",
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  backgroundColor: "#fffbeb",
+                  border: "1px solid #fcd34d",
+                  borderRadius: "8px",
+                  padding: "10px 16px",
+                  fontSize: "13px",
+                  color: "#92400e",
+                  whiteSpace: "nowrap",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                  zIndex: 10,
+                }}
+              >
+                📍 Ubicación no disponible — arrastra el pin rojo para
+                posicionarte
+              </div>
+            )}
+
+            {/* ─── BOTÓN CONTINUAR (parte inferior del mapa) ───────────── */}
             <div
               style={{
                 position: "absolute",
-                top: "16px",
+                bottom: "24px",
                 left: "50%",
                 transform: "translateX(-50%)",
-                backgroundColor: "#fffbeb",
-                border: "1px solid #fcd34d",
-                borderRadius: "8px",
-                padding: "10px 16px",
-                fontSize: "13px",
-                color: "#92400e",
-                whiteSpace: "nowrap",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                zIndex: 10,
+                zIndex: 20,
+                width: "90%",
+                maxWidth: "400px",
               }}
             >
-              📍 Ubicación no disponible — arrastra el pin rojo para
-              posicionarte
-            </div>
-          )}
-
-          {/* ─── BOTÓN CONTINUAR (parte inferior del mapa) ───────────── */}
-          <div
-            style={{
-              position: "absolute",
-              bottom: "24px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              zIndex: 20,
-              width: "90%",
-              maxWidth: "400px",
-            }}
-          >
-            <button
-              onClick={handleContinuar}
-              disabled={!rate || !rate.available || loadingRate}
-              style={{
-                width: "100%",
-                padding: "18px 32px",
-                fontSize: "16px",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                color: "#ffffff",
-                backgroundColor:
-                  !rate || !rate.available || loadingRate
-                    ? "#9ca3af"
-                    : "#2563eb",
-                border: "none",
-                borderRadius: "14px",
-                cursor:
-                  !rate || !rate.available || loadingRate
-                    ? "not-allowed"
-                    : "pointer",
-                transition: "all 0.2s ease",
-                boxShadow:
-                  !rate || !rate.available || loadingRate
-                    ? "none"
-                    : "0 6px 20px rgba(37, 99, 235, 0.4)",
-              }}
-              onMouseEnter={(e) => {
-                if (rate && rate.available && !loadingRate) {
-                  e.currentTarget.style.backgroundColor = "#1d4ed8";
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow =
-                    "0 8px 25px rgba(37, 99, 235, 0.5)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (rate && rate.available && !loadingRate) {
-                  e.currentTarget.style.backgroundColor = "#2563eb";
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow =
-                    "0 6px 20px rgba(37, 99, 235, 0.4)";
-                }
-              }}
-            >
-              {loadingRate ? "Calculando..." : "Continuar"}
-            </button>
-
-            {/* Mensaje si no está disponible */}
-            {rate && !rate.available && (
-              <div
+              <button
+                onClick={handleContinuar}
+                disabled={!rate || !rate.available || loadingRate}
                 style={{
-                  marginTop: "10px",
-                  padding: "10px 14px",
-                  backgroundColor: "#fef2f2",
-                  border: "1px solid #fecaca",
-                  borderRadius: "10px",
-                  textAlign: "center",
-                  fontSize: "13px",
-                  color: "#991b1b",
+                  width: "100%",
+                  padding: "18px 32px",
+                  fontSize: "16px",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  color: "#ffffff",
+                  backgroundColor:
+                    !rate || !rate.available || loadingRate
+                      ? "#9ca3af"
+                      : "#2563eb",
+                  border: "none",
+                  borderRadius: "14px",
+                  cursor:
+                    !rate || !rate.available || loadingRate
+                      ? "not-allowed"
+                      : "pointer",
+                  transition: "all 0.2s ease",
+                  boxShadow:
+                    !rate || !rate.available || loadingRate
+                      ? "none"
+                      : "0 6px 20px rgba(37, 99, 235, 0.4)",
+                }}
+                onMouseEnter={(e) => {
+                  if (rate && rate.available && !loadingRate) {
+                    e.currentTarget.style.backgroundColor = "#1d4ed8";
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow =
+                      "0 8px 25px rgba(37, 99, 235, 0.5)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (rate && rate.available && !loadingRate) {
+                    e.currentTarget.style.backgroundColor = "#2563eb";
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow =
+                      "0 6px 20px rgba(37, 99, 235, 0.4)";
+                  }
                 }}
               >
-                ❌ {rate.reason}
-              </div>
-            )}
+                {loadingRate ? "Calculando..." : "Continuar"}
+              </button>
+
+              {/* Mensaje si no está disponible */}
+              {rate && !rate.available && (
+                <div
+                  style={{
+                    marginTop: "10px",
+                    padding: "10px 14px",
+                    backgroundColor: "#fef2f2",
+                    border: "1px solid #fecaca",
+                    borderRadius: "10px",
+                    textAlign: "center",
+                    fontSize: "13px",
+                    color: "#991b1b",
+                  }}
+                >
+                  ❌ {rate.reason}
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </APIProvider>
+      </APIProvider>
+    </Suspense>
   );
 }
