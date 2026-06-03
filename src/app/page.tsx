@@ -1,6 +1,5 @@
 "use client";
 
-import { Card } from "@/components/ui/card";
 import {
   APIProvider,
   Map,
@@ -152,7 +151,13 @@ const DraggableMap: React.FC<{
 
 // ─── Page principal ───────────────────────────────────────────────────────────
 
-export default function Home() {
+export default function Home({
+  searchParams,
+}: {
+  searchParams: { email: string };
+}) {
+  const { email } = searchParams;
+
   const router = useRouter();
   const [clientCoord, setClientCoord] = useState<Coord | null>(null);
   const [geoPermission, setGeoPermission] = useState<
@@ -215,7 +220,7 @@ export default function Home() {
 
     // Serializar datos de la tarifa y coordenadas para pasar a la siguiente página
     const queryParams = new URLSearchParams({
-      email: "beiker-jose@gmail.com",
+      email: email,
       distance_km: String(rate.distance_km),
       radius: rate.radius,
       base_rate: String(rate.base_rate),
