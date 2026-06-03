@@ -8,7 +8,7 @@ import {
   useMap,
 } from "@vis.gl/react-google-maps";
 import React, { useRef, useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -151,12 +151,11 @@ const DraggableMap: React.FC<{
 
 // ─── Page principal ───────────────────────────────────────────────────────────
 
-export default function Home({
-  searchParams,
-}: {
-  searchParams: { email: string };
-}) {
-  const { email } = searchParams;
+export default function Home() {
+  const searchParams = useSearchParams();
+
+  // Capturar email desde los query params del path
+  const email = searchParams.get("email");
 
   const router = useRouter();
   const [clientCoord, setClientCoord] = useState<Coord | null>(null);
@@ -220,7 +219,7 @@ export default function Home({
 
     // Serializar datos de la tarifa y coordenadas para pasar a la siguiente página
     const queryParams = new URLSearchParams({
-      email: email,
+      email: email ?? "",
       distance_km: String(rate.distance_km),
       radius: rate.radius,
       base_rate: String(rate.base_rate),
@@ -235,6 +234,10 @@ export default function Home({
   };
 
   const branch = clientCoord ? closestBranch(clientCoord) : null;
+
+  if (!email) {
+    return <div>No se proporcionó un correo electrónico.</div>;
+  }
 
   return (
     <APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY!}>
