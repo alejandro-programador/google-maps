@@ -215,7 +215,7 @@ export default function Home() {
 
     // Serializar datos de la tarifa y coordenadas para pasar a la siguiente página
     const queryParams = new URLSearchParams({
-      branch: rate.branch,
+      email: "beiker-jose@gmail.com",
       distance_km: String(rate.distance_km),
       radius: rate.radius,
       base_rate: String(rate.base_rate),
