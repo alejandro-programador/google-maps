@@ -219,6 +219,7 @@ export default function Home() {
 
     // Serializar datos de la tarifa y coordenadas para pasar a la siguiente página
     const queryParams = new URLSearchParams({
+      step: "2",
       email: email ?? "",
       distance_km: String(rate.distance_km),
       radius: rate.radius,
@@ -230,7 +231,9 @@ export default function Home() {
       lng: String(clientCoord!.lng),
     });
 
-    router.push(`/checkout?${queryParams.toString()}`);
+    router.push(
+      `https://web.chefmargaro.com/checkout?${queryParams.toString()}`,
+    );
   };
 
   const branch = clientCoord ? closestBranch(clientCoord) : null;
