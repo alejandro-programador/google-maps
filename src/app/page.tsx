@@ -157,6 +157,7 @@ const DraggableMap: React.FC<{
 };
 
 // ─── Page principal ───────────────────────────────────────────────────────────
+export const dynamic = "force-dynamic";
 
 export default function Home() {
   const params = useQueryObject({ email: "0" });
