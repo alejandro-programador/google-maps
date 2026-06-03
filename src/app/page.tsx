@@ -7,14 +7,9 @@ import {
   useMapsLibrary,
   useMap,
 } from "@vis.gl/react-google-maps";
-import React, {
-  useRef,
-  useEffect,
-  useState,
-  useCallback,
-  useMemo,
-} from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import React, { useRef, useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { useQueryObject } from "@/hooks/useQueryObject";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -158,15 +153,7 @@ const DraggableMap: React.FC<{
 // ─── Page principal ───────────────────────────────────────────────────────────
 
 export default function Home() {
-  const searchParams = useSearchParams();
-
-  // Capturar email desde los query params del path
-  const querys = useMemo(
-    () => ({
-      email: searchParams.get("email"),
-    }),
-    [searchParams],
-  );
+  const params = useQueryObject({ email: "0" });
 
   const router = useRouter();
   const [clientCoord, setClientCoord] = useState<Coord | null>(null);
@@ -231,7 +218,7 @@ export default function Home() {
     // Serializar datos de la tarifa y coordenadas para pasar a la siguiente página
     const queryParams = new URLSearchParams({
       step: "2",
-      email: querys.email ?? "",
+      email: params.email ?? "",
       distance_km: String(rate.distance_km),
       radius: rate.radius,
       base_rate: String(rate.base_rate),
@@ -249,7 +236,7 @@ export default function Home() {
 
   const branch = clientCoord ? closestBranch(clientCoord) : null;
 
-  if (!querys.email) {
+  if (!params.email) {
     return <div>No se proporcionó un correo electrónico.</div>;
   }
 
