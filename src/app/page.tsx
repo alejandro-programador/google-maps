@@ -130,7 +130,15 @@ const DraggableMap: React.FC<{
     <Map
       defaultCenter={clientCoord}
       defaultZoom={initialZoom}
+      gestureHandling="greedy"
+      disableDefaultUI
+      zoomControl
       style={{ height: "100%", width: "100%" }}
+      onClick={(e) => {
+        // Tocar el mapa también mueve el pin
+        const ll = e.detail.latLng;
+        if (ll) onDragEnd({ lat: ll.lat, lng: ll.lng });
+      }}
     >
       {/* Pin sucursal — azul, fijo */}
       <Marker
@@ -193,8 +201,9 @@ export default function Home() {
   // Calcular tarifa cuando cambia el pin (en segundo plano, sin UI)
   const calcularTarifa = useCallback(async (coord: Coord) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    setLoadingRate(true);
+    setRate(null);
     debounceRef.current = setTimeout(async () => {
-      setLoadingRate(true);
       try {
         const res = await fetch(
           `/api/location?latitude=${coord.lat}&longitude=${coord.lng}`,
@@ -215,8 +224,18 @@ export default function Home() {
   }, [clientCoord, calcularTarifa]);
 
   const handleDragEnd = (coord: Coord) => {
+    // El efecto sobre clientCoord dispara el recálculo
     setClientCoord(coord);
-    calcularTarifa(coord);
+  };
+
+  const handleCancelar = () => {
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      router.push(
+        `https://web.chefmargaro.com/checkout?email=${encodeURIComponent(params.email ?? "")}`,
+      );
+    }
   };
 
   const handleContinuar = () => {
@@ -368,6 +387,27 @@ export default function Home() {
                 }}
               >
                 {loadingRate ? "Calculando..." : "Continuar"}
+              </button>
+
+              <button
+                onClick={handleCancelar}
+                style={{
+                  width: "100%",
+                  marginTop: "10px",
+                  padding: "14px 32px",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  color: "#374151",
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "14px",
+                  cursor: "pointer",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                }}
+              >
+                Cancelar
               </button>
 
               {/* Mensaje si no está disponible */}
