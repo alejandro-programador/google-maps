@@ -21,6 +21,8 @@ import { useQueryObject } from "@/hooks/useQueryObject";
 
 type Coord = { lat: number; lng: number };
 
+const URL_BASE = "https://chefmargaro.com";
+
 type RateResponse =
   | {
       available: true;
@@ -233,7 +235,7 @@ export default function Home() {
       router.back();
     } else {
       router.push(
-        `https://web.chefmargaro.com/checkout?email=${encodeURIComponent(params.email ?? "")}`,
+        `${URL_BASE}/checkout?email=${encodeURIComponent(params.email ?? "")}`,
       );
     }
   };
@@ -255,9 +257,7 @@ export default function Home() {
       lng: String(clientCoord!.lng),
     });
 
-    router.push(
-      `https://web.chefmargaro.com/checkout?${queryParams.toString()}`,
-    );
+    router.push(`${URL_BASE}s/checkout?${queryParams.toString()}`);
   };
 
   const branch = clientCoord ? closestBranch(clientCoord) : null;
