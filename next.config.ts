@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Genera .next/standalone con server.js y solo las dependencias necesarias (para VPS)
+  output: "standalone",
 };
 
 export default nextConfig;
