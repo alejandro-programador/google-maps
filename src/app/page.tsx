@@ -21,7 +21,7 @@ import { useQueryObject } from "@/hooks/useQueryObject";
 
 type Coord = { lat: number; lng: number };
 
-const URL_BASE = "https://chefmargaro.com";
+const URL_BASE = "https://theweb.chefmargaro.com";
 
 type RateResponse =
   | {
