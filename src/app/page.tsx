@@ -21,7 +21,7 @@ import { useQueryObject } from "@/hooks/useQueryObject";
 
 type Coord = { lat: number; lng: number };
 
-const URL_BASE = "https://chefmargaro.com";
+const URL_BASE = "https://web.chefmargaro.com";
 
 type RateResponse =
   | {
@@ -103,10 +103,17 @@ const Directions: React.FC<{ origin: Coord; destination: Coord }> = ({
       {
         origin,
         destination,
-        travelMode: google.maps.TravelMode.DRIVING,
+        travelMode: routesLibrary.TravelMode.DRIVING,
       },
-      (result, status) => {
-        if (status === "OK" && rendererRef.current) {
+      (
+        result: google.maps.DirectionsResult | null,
+        status: google.maps.DirectionsStatus,
+      ) => {
+        if (
+          status === routesLibrary.DirectionsStatus.OK &&
+          result &&
+          rendererRef.current
+        ) {
           rendererRef.current.setDirections(result);
         }
       },
