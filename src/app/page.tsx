@@ -257,7 +257,7 @@ export default function Home() {
       lng: String(clientCoord!.lng),
     });
 
-    router.push(`${URL_BASE}s/checkout?${queryParams.toString()}`);
+    router.push(`${URL_BASE}/checkout?${queryParams.toString()}`);
   };
 
   const branch = clientCoord ? closestBranch(clientCoord) : null;
