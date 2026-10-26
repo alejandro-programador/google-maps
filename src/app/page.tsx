@@ -21,7 +21,8 @@ import { useQueryObject } from "@/hooks/useQueryObject";
 
 type Coord = { lat: number; lng: number };
 
-const URL_BASE = "https://web.chefmargaro.com";
+
+const URL_BASE = "https://theweb.chefmargaro.com";
 
 type RateResponse =
   | {
@@ -264,7 +265,7 @@ export default function Home() {
       lng: String(clientCoord!.lng),
     });
 
-    router.push(`${URL_BASE}s/checkout?${queryParams.toString()}`);
+    router.push(`${URL_BASE}/checkout?${queryParams.toString()}`);
   };
 
   const branch = clientCoord ? closestBranch(clientCoord) : null;
